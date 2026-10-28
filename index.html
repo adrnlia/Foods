@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Monster Picnic 3D: Lunchtime Rush!</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #87CEEB; font-family: 'Inter', sans-serif; touch-action: none; }
+        canvas { display: block; width: 100vw; height: 100vh; }
+        
+        #ui-layer {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            z-index: 10;
+        }
+        
+        .pointer-events-auto { pointer-events: auto; }
+        
+        .speech-bubble {
+            background: white;
+            border-radius: 20px;
+            padding: 15px 25px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            border: 4px solid #FCD34D;
+            position: relative;
+            animation: bounceIn 0.5s ease-out;
+        }
+        .speech-bubble::after {
+            content: ''; position: absolute;
+            bottom: -20px; left: 50%;
+            border-width: 20px 20px 0;
+            border-style: solid;
+            border-color: #FCD34D transparent transparent transparent;
+            display: block; width: 0; transform: translateX(-50%);
+        }
+        .speech-bubble::before {
+            content: ''; position: absolute;
+            bottom: -14px; left: 50%;
+            border-width: 15px 15px 0;
+            border-style: solid;
+            border-color: white transparent transparent transparent;
+            display: block; width: 0; transform: translateX(-50%);
+            z-index: 1;
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.1); opacity: 0; }
+            60% { transform: scale(1.1); opacity: 1; }
+            100% { transform: scale(1); }
+        }
+
+        .control-btn {
+            background: rgba(255, 255, 255, 0.75);
+            border: 2px solid white;
+            border-radius: 50%;
+            width: 55px; height: 55px;
+            display: flex; justify-content: center; align-items: center;
+            font-size: 20px; font-weight: bold; color: #333;
+            user-select: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .control-btn:active { background: rgba(200, 200, 200, 0.9); transform: scale(0.95); }
+
+        #start-screen {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(15, 23, 42, 0.9);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            z-index: 50; color: white; text-align: center; padding: 20px;
+            overflow-y: auto;
+        }
+
+        .char-card {
+            border: 4px solid transparent;
+            transition: all 0.2s ease-in-out;
+            cursor: pointer;
+        }
+        .char-card.selected {
+            border-color: #FCD34D;
+            transform: scale(1.05);
+            box-shadow: 0 0 20px rgba(252, 211, 77, 0.6);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Start / Character Selection Screen -->
+    <div id="start-screen" class="pointer-events-auto">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-yellow-400 mb-2 drop-shadow-lg">Monster Picnic 3D</h1>
+        <p class="text-lg md:text-xl text-blue-200 mb-6 max-w-md">Pick your hero, rotate your view, and feed the hungry monster!</p>
+        
+        <!-- Character Choice -->
+        <h2 class="text-xl font-bold mb-3 text-white">Choose Your Character:</h2>
+        <div class="grid grid-cols-3 gap-4 mb-6">
+            <div id="char-blue" class="char-card selected bg-blue-600/80 p-4 rounded-2xl flex flex-col items-center">
+                <div class="w-16 h-16 bg-blue-400 rounded-full border-2 border-white mb-2 flex items-center justify-center font-bold text-2xl">🤖</div>
+                <span class="font-bold">Robo-Blue</span>
+            </div>
+            <div id="char-pink" class="char-card bg-pink-600/80 p-4 rounded-2xl flex flex-col items-center">
+                <div class="w-16 h-16 bg-pink-400 rounded-full border-2 border-white mb-2 flex items-center justify-center font-bold text-2xl">🐱</div>
+                <span class="font-bold">Kitty-Pink</span>
+            </div>
+            <div id="char-green" class="char-card bg-emerald-600/80 p-4 rounded-2xl flex flex-col items-center">
+                <div class="w-16 h-16 bg-emerald-400 rounded-full border-2 border-white mb-2 flex items-center justify-center font-bold text-2xl">🐸</div>
+                <span class="font-bold">Froggy-Green</span>
+            </div>
+        </div>
+
+        <div class="bg-white/10 p-4 rounded-xl mb-6 text-sm text-center max-w-lg">
+            <p><span class="text-yellow-300 font-bold">W/A/S/D or Arrows:</span> Move Character</p>
+            <p><span class="text-yellow-300 font-bold">Mouse / Touch Drag:</span> Rotate Camera</p>
+            <p><span class="text-yellow-300 font-bold">Q / E:</span> Turn Camera</p>
+        </div>
+
+        <button id="start-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-extrabold py-3 px-10 rounded-full text-2xl shadow-[0_6px_0_#b45309] active:shadow-[0_0px_0_#b45309] active:translate-y-[6px] transition-all">
+            Start Game!
+        </button>
+    </div>
+
+    <!-- Win Screen -->
+    <div id="win-screen" class="hidden pointer-events-auto absolute top-0 left-0 w-full h-full bg-green-500/95 flex-col justify-center items-center z-50 text-white text-center p-4">
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-4 drop-shadow-lg text-yellow-300">You Win! 🎉</h1>
+        <p class="text-2xl md:text-3xl mb-8 font-bold">The monster is full and happy!</p>
+        <button id="restart-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-extrabold py-3 px-10 rounded-full text-2xl shadow-[0_6px_0_#b45309] active:shadow-[0_0px_0_#b45309] active:translate-y-[6px] transition-all">
+            Play Again
+        </button>
+    </div>
+
+    <!-- Game Over Screen -->
+    <div id="game-over-screen" class="hidden pointer-events-auto absolute top-0 left-0 w-full h-full bg-red-900/95 flex-col justify-center items-center z-50 text-white text-center p-4">
+        <h1 class="text-5xl md:text-7xl font-extrabold mb-4 drop-shadow-lg text-yellow-300">Game Over! 😢</h1>
+        <p class="text-2xl md:text-3xl mb-8 font-bold">You lost all your lives. The monster is still hungry!</p>
+        <button id="retry-btn" class="bg-yellow-400 hover:bg-yellow-500 text-gray-900 font-extrabold py-3 px-10 rounded-full text-2xl shadow-[0_6px_0_#b45309] active:shadow-[0_0px_0_#b45309] active:translate-y-[6px] transition-all">
+            Try Again
+        </button>
+    </div>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer">
+        <!-- Speech Bubble -->
+        <div class="flex justify-center p-4">
+            <div class="speech-bubble text-center max-w-md md:max-w-xl">
+                <p id="monster-text" class="text-xl md:text-2xl font-bold text-gray-800">Loading...</p>
+            </div>
+        </div>
+
+        <!-- Lives Display -->
+        <div class="absolute top-4 left-4 bg-white/90 px-4 py-2 rounded-xl border-4 border-red-400 shadow-lg font-bold text-lg md:text-xl text-red-700 flex items-center gap-2">
+            Lives: <span id="lives-display">❤️❤️❤️</span>
+        </div>
+
+        <div class="absolute top-20 left-4 md:top-4 md:left-[220px] bg-white/90 px-4 py-2 rounded-xl border-4 border-green-400 shadow-lg font-bold text-lg md:text-xl text-green-700">
+            Score: <span id="score">0 / 10</span>
+        </div>
+
+        <div class="absolute top-4 right-4">
+            <button id="repeat-btn" class="pointer-events-auto bg-blue-500 hover:bg-blue-600 text-white p-3 rounded-full shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z" />
+                </svg>
+            </button>
+        </div>
+
+        <!-- Feedback Text -->
+        <div id="feedback-text" class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-4xl font-extrabold text-white drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] opacity-0 transition-opacity duration-300">
+            Good Job!
+        </div>
+
+        <!-- Mobile Controls -->
+        <div class="pointer-events-auto flex justify-between items-end p-4 md:hidden w-full mb-4">
+            <div class="grid grid-cols-3 gap-1 w-40">
+                <div></div>
+                <div class="control-btn" id="btn-up">↑</div>
+                <div></div>
+                <div class="control-btn" id="btn-left">←</div>
+                <div class="control-btn" id="btn-down">↓</div>
+                <div class="control-btn" id="btn-right">→</div>
+            </div>
+            <div class="flex gap-2">
+                <div class="control-btn" id="btn-cam-left">↺</div>
+                <div class="control-btn" id="btn-cam-right">↻</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 3D Canvas -->
+    <div id="canvas-container"></div>
+
+    <script>
+        // Game State & Vocabulary
+        const foods = [
+            { id: 'apple', name: 'an apple', type: 'food' },
+            { id: 'banana', name: 'a banana', type: 'food' },
+            { id: 'pizza', name: 'some pizza', type: 'food' },
+            { id: 'carrot', name: 'some carrots', type: 'food' },
+            { id: 'sandwich', name: 'a cheese sandwich', type: 'food' },
+            { id: 'sausage', name: 'a sausage', type: 'food' },
+            { id: 'cake', name: 'some cake', type: 'food' },
+            { id: 'chicken', name: 'some chicken', type: 'food' },
+            { id: 'steak', name: 'a steak', type: 'food' },
+            { id: 'peas', name: 'some peas', type: 'food' },
+            { id: 'water', name: 'some water', type: 'drink' },
+            { id: 'milk', name: 'some milk', type: 'drink' },
+            { id: 'juice', name: 'some orange juice', type: 'drink' }
+        ];
+
+        let score = 0;
+        let lives = 3;
+        let currentTarget = null;
+        let gameActive = false;
+        let selectedCharacter = 'blue';
+
+        // Keyboard & Camera State
+        const keys = { w: false, a: false, s: false, d: false, ArrowUp: false, ArrowLeft: false, ArrowDown: false, ArrowRight: false, q: false, e: false };
+        
+        // Camera Orbit Controls State
+        let cameraAngleY = Math.PI; // Look from behind initially
+        let cameraPitch = 0.5;      // Height angle
+        let isDragging = false;
+        let previousMouseX = 0;
+        let previousMouseY = 0;
+
+        // --- Three.js Setup ---
+        const container = document.getElementById('canvas-container');
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0xFEF3C7); // Warm cream wall color matching image
+        scene.fog = new THREE.Fog(0xFEF3C7, 15, 60);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        container.appendChild(renderer.domElement);
+
+        // Lighting
+        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        scene.add(ambientLight);
+
+        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        dirLight.position.set(15, 25, 15);
+        dirLight.castShadow = true;
+        dirLight.shadow.camera.left = -25;
+        dirLight.shadow.camera.right = 25;
+        dirLight.shadow.camera.top = 25;
+        dirLight.shadow.camera.bottom = -25;
+        scene.add(dirLight);
+
+        // Ground Floor (Checkered Cafeteria Floor - Turquoise/Teal)
+        const floorCanvas = document.createElement('canvas');
+        floorCanvas.width = 128; floorCanvas.height = 128;
+        const floorCtx = floorCanvas.getContext('2d');
+        floorCtx.fillStyle = '#CFFAFE'; floorCtx.fillRect(0, 0, 128, 128); // Light cyan
+        floorCtx.fillStyle = '#67E8F9'; floorCtx.fillRect(0, 0, 64, 64); floorCtx.fillRect(64, 64, 64, 64); // Darker cyan
+        const floorTexture = new THREE.CanvasTexture(floorCanvas);
+        floorTexture.wrapS = THREE.RepeatWrapping; floorTexture.wrapT = THREE.RepeatWrapping;
+        floorTexture.repeat.set(30, 30);
+
+        const floorGeo = new THREE.PlaneGeometry(60, 60);
+        const floorMat = new THREE.MeshStandardMaterial({ map: floorTexture });
+        const floor = new THREE.Mesh(floorGeo, floorMat);
+        floor.rotation.x = -Math.PI / 2;
+        floor.receiveShadow = true;
+        scene.add(floor);
+
+        // Cafeteria Walls
+        const wallMat = new THREE.MeshStandardMaterial({ color: 0xFEF3C7 });
+        const wallGeo1 = new THREE.BoxGeometry(60, 12, 1);
+        const wallGeo2 = new THREE.BoxGeometry(1, 12, 60);
+        const wallN = new THREE.Mesh(wallGeo1, wallMat); wallN.position.set(0, 6, -30); wallN.receiveShadow = true; scene.add(wallN);
+        const wallS = new THREE.Mesh(wallGeo1, wallMat); wallS.position.set(0, 6, 30); wallS.receiveShadow = true; scene.add(wallS);
+        const wallE = new THREE.Mesh(wallGeo2, wallMat); wallE.position.set(30, 6, 0); wallE.receiveShadow = true; scene.add(wallE);
+        const wallW = new THREE.Mesh(wallGeo2, wallMat); wallW.position.set(-30, 6, 0); wallW.receiveShadow = true; scene.add(wallW);
+
+        // Cafeteria Scenery (Windows, Counter, Clock)
+        const winGlassMat = new THREE.MeshStandardMaterial({ color: 0x7DD3FC, roughness: 0.1, transparent: true, opacity: 0.8 });
+        const winFrameMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF });
+        
+        for(let i=0; i<2; i++) {
+            const zPos = -10 + (i * 20);
+            const winGlass = new THREE.Mesh(new THREE.BoxGeometry(0.5, 8, 12), winGlassMat);
+            winGlass.position.set(-29.5, 6, zPos);
+            const winMullion = new THREE.Mesh(new THREE.BoxGeometry(0.7, 8, 0.5), winFrameMat);
+            winMullion.position.set(-29.5, 6, zPos);
+            const winTransom = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.5, 12.5), winFrameMat);
+            winTransom.position.set(-29.5, 6, zPos);
+            scene.add(winGlass, winMullion, winTransom);
+        }
+
+        const counterBase = new THREE.Mesh(new THREE.BoxGeometry(25, 3, 4), new THREE.MeshStandardMaterial({ color: 0x3B82F6 })); // Blue base
+        counterBase.position.set(10, 1.5, -28);
+        counterBase.receiveShadow = true; counterBase.castShadow = true;
+        const counterTop = new THREE.Mesh(new THREE.BoxGeometry(26, 0.5, 5), new THREE.MeshStandardMaterial({ color: 0xFFFFFF }));
+        counterTop.position.set(10, 3.25, -28);
+        counterTop.receiveShadow = true; counterTop.castShadow = true;
+        scene.add(counterBase, counterTop);
+
+        const clockGroup = new THREE.Group();
+        const clockFace = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0xFFFFFF }));
+        clockFace.rotation.x = Math.PI / 2;
+        const clockRim = new THREE.Mesh(new THREE.TorusGeometry(1.5, 0.2, 8, 24), new THREE.MeshStandardMaterial({ color: 0x333333 }));
+        clockRim.rotation.x = Math.PI / 2;
+        const hand = new THREE.Mesh(new THREE.BoxGeometry(0.1, 1, 0.1), new THREE.MeshBasicMaterial({ color: 0xFF0000 }));
+        hand.position.set(0, 0.5, 0.2);
+        hand.rotation.z = -Math.PI / 6;
+        clockGroup.add(clockFace, clockRim, hand);
+        clockGroup.position.set(-5, 9, -29.4);
+        scene.add(clockGroup);
+
+        // Cafeteria Tables
+        const tableGroup = new THREE.Group();
+        const tableMat = new THREE.MeshStandardMaterial({ color: 0xFFFFFF }); // White top
+        const legMat = new THREE.MeshStandardMaterial({ color: 0xFBBF24 }); // Yellow legs
+        const tableTopGeo = new THREE.BoxGeometry(3, 0.2, 3);
+        const legGeo = new THREE.CylinderGeometry(0.1, 0.1, 1.5, 8);
+        const tablePositions = [ [-15, -15], [15, -15], [-20, 10], [20, 10], [-10, 20], [10, 20] ];
+        
+        tablePositions.forEach(pos => {
+            const table = new THREE.Group();
+            const top = new THREE.Mesh(tableTopGeo, tableMat);
+            top.position.y = 1.5; top.castShadow = true; top.receiveShadow = true;
+            table.add(top);
+            [[-1.3, -1.3], [1.3, -1.3], [-1.3, 1.3], [1.3, 1.3]].forEach(p => {
+                const leg = new THREE.Mesh(legGeo, legMat);
+                leg.position.set(p[0], 0.75, p[1]);
+                leg.castShadow = true; table.add(leg);
+            });
+            table.position.set(pos[0], 0, pos[1]);
+            tableGroup.add(table);
+        });
+        scene.add(tableGroup);
+
+        // Player Group
+        const player = new THREE.Group();
+        let playerMeshGroup = new THREE.Group();
+        player.add(playerMeshGroup);
+        scene.add(player);
+
+        // Function to build chosen Character Mesh
+        function buildCharacter(type) {
+            // Remove previous mesh
+            while(playerMeshGroup.children.length > 0) { 
+                playerMeshGroup.remove(playerMeshGroup.children[0]); 
+            }
+
+            let colorHex = 0x3B82F6; // Blue default
+            let earType = 'none';
+
+            if (type === 'pink') {
+                colorHex = 0xEC4899;
+                earType = 'cat';
+            } else if (type === 'green') {
+                colorHex = 0x10B981;
+                earType = 'frog';
+            }
+
+            // Body
+            const bodyGeo = new THREE.CylinderGeometry(0.7, 0.7, 1.4, 16);
+            const bodyMat = new THREE.MeshStandardMaterial({ color: colorHex });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.position.y = 1.2;
+            body.castShadow = true;
+            playerMeshGroup.add(body);
+
+            // Head / Eyes
+            const eyeGeo = new THREE.SphereGeometry(0.2, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
+            const pupilMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+            
+            const eyeL = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeL.position.set(-0.3, 1.6, 0.6);
+            const pupilL = new THREE.Mesh(new THREE.SphereGeometry(0.1), pupilMat);
+            pupilL.position.set(0, 0, 0.15);
+            eyeL.add(pupilL);
+            playerMeshGroup.add(eyeL);
+
+            const eyeR = new THREE.Mesh(eyeGeo, eyeMat);
+            eyeR.position.set(0.3, 1.6, 0.6);
+            const pupilR = new THREE.Mesh(new THREE.SphereGeometry(0.1), pupilMat);
+            pupilR.position.set(0, 0, 0.15);
+            eyeR.add(pupilR);
+            playerMeshGroup.add(eyeR);
+
+            // Special character accessories
+            if (earType === 'cat') {
+                const earGeo = new THREE.ConeGeometry(0.25, 0.5, 4);
+                const earMat = new THREE.MeshStandardMaterial({ color: colorHex });
+                const earL = new THREE.Mesh(earGeo, earMat);
+                earL.position.set(-0.4, 2.1, 0);
+                const earR = new THREE.Mesh(earGeo, earMat);
+                earR.position.set(0.4, 2.1, 0);
+                playerMeshGroup.add(earL, earR);
+            } else if (earType === 'frog') {
+                const frogEyeGeo = new THREE.SphereGeometry(0.3, 16, 16);
+                const frogEyeMat = new THREE.MeshStandardMaterial({ color: colorHex });
+                const fL = new THREE.Mesh(frogEyeGeo, frogEyeMat);
+                fL.position.set(-0.35, 2.0, 0.2);
+                const fR = new THREE.Mesh(frogEyeGeo, frogEyeMat);
+                fR.position.set(0.35, 2.0, 0.2);
+                playerMeshGroup.add(fL, fR);
+            } else {
+                // Robot antenna
+                const ant = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.5), new THREE.MeshStandardMaterial({ color: 0xFCD34D }));
+                ant.position.set(0, 2.1, 0);
+                const topSphere = new THREE.Mesh(new THREE.SphereGeometry(0.15), new THREE.MeshStandardMaterial({ color: 0xEF4444 }));
+                topSphere.position.set(0, 2.35, 0);
+                playerMeshGroup.add(ant, topSphere);
+            }
+        }
+
+        // Central Monster
+        const monster = new THREE.Group();
+        const monBodyGeo = new THREE.SphereGeometry(2, 32, 32);
+        const monBodyMat = new THREE.MeshStandardMaterial({ color: 0x8B5CF6, roughness: 0.7 });
+        const monBody = new THREE.Mesh(monBodyGeo, monBodyMat);
+        monBody.position.y = 2;
+        monBody.castShadow = true;
+        monster.add(monBody);
+        
+        const monEyeGeo = new THREE.SphereGeometry(0.8, 16, 16);
+        const monEye = new THREE.Mesh(monEyeGeo, new THREE.MeshBasicMaterial({ color: 0xffffff }));
+        monEye.position.set(0, 2.5, 1.6);
+        const monPupil = new THREE.Mesh(new THREE.SphereGeometry(0.3), new THREE.MeshBasicMaterial({ color: 0x000000 }));
+        monPupil.position.set(0, 0, 0.7);
+        monEye.add(monPupil);
+        monster.add(monEye);
+
+        // Monster Mouth / Expressions
+        const monMouthGeo = new THREE.TorusGeometry(0.6, 0.1, 8, 16, Math.PI);
+        const monMouthMat = new THREE.MeshBasicMaterial({ color: 0x000000 });
+        const monMouth = new THREE.Mesh(monMouthGeo, monMouthMat);
+        monMouth.position.set(0, 2.1, 1.95);
+        monMouth.rotation.z = Math.PI; // Default smile
+        monster.add(monMouth);
+
+        function setMonsterExpression(emotion) {
+            if (emotion === 'happy') {
+                monMouth.rotation.z = Math.PI; // Smile
+                monMouth.position.y = 2.1;
+                monBodyMat.color.setHex(0x8B5CF6); // Regular Purple
+            } else if (emotion === 'sad') {
+                monMouth.rotation.z = 0; // Frown
+                monMouth.position.y = 1.9;
+                monBodyMat.color.setHex(0x6D28D9); // Darker sad purple
+            }
+        }
+
+        scene.add(monster);
+
+        // Foods setup
+        const activeFoods = [];
+
+        function createFoodMesh(foodId) {
+            const group = new THREE.Group();
+            group.userData.id = foodId;
+
+            let mesh;
+            switch(foodId) {
+                case 'apple':
+                    mesh = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), new THREE.MeshStandardMaterial({ color: 0xEF4444 }));
+                    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.3), new THREE.MeshStandardMaterial({ color: 0x22C55E }));
+                    stem.position.y = 0.6;
+                    group.add(stem);
+                    break;
+                case 'banana':
+                    mesh = new THREE.Mesh(new THREE.TorusGeometry(0.5, 0.2, 8, 16, Math.PI * 0.8), new THREE.MeshStandardMaterial({ color: 0xFBBF24 }));
+                    mesh.rotation.x = Math.PI / 2;
+                    mesh.rotation.z = Math.PI / 4;
+                    break;
+                case 'pizza':
+                    const shape = new THREE.Shape();
+                    shape.moveTo(0, 0); shape.lineTo(1, 1.5); shape.lineTo(-1, 1.5); shape.lineTo(0, 0);
+                    mesh = new THREE.Mesh(new THREE.ExtrudeGeometry(shape, { depth: 0.1, bevelEnabled: false }), new THREE.MeshStandardMaterial({ color: 0xF97316 }));
+                    mesh.rotation.x = Math.PI / 2;
+                    break;
+                case 'carrot':
+                    mesh = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.2, 16), new THREE.MeshStandardMaterial({ color: 0xF97316 }));
+                    mesh.rotation.z = -Math.PI / 4;
+                    break;
+                case 'sandwich':
+                    mesh = new THREE.Group();
+                    const b1 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), new THREE.MeshStandardMaterial({ color: 0xFDE68A }));
+                    const ch = new THREE.Mesh(new THREE.BoxGeometry(1.3, 0.1, 1.3), new THREE.MeshStandardMaterial({ color: 0xEAB308 }));
+                    const b2 = new THREE.Mesh(new THREE.BoxGeometry(1.2, 0.2, 1.2), new THREE.MeshStandardMaterial({ color: 0xFDE68A }));
+                    b1.position.y = -0.15; ch.position.y = 0; b2.position.y = 0.15;
+                    mesh.add(b1, ch, b2);
+                    break;
+                case 'sausage':
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.25, 0.25, 1.2, 16), new THREE.MeshStandardMaterial({ color: 0x991B1B }));
+                    mesh.rotation.z = Math.PI / 2;
+                    break;
+                case 'cake':
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.6, 0.6, 0.8, 16), new THREE.MeshStandardMaterial({ color: 0xF472B6 }));
+                    const icing = new THREE.Mesh(new THREE.CylinderGeometry(0.62, 0.62, 0.3, 16), new THREE.MeshStandardMaterial({ color: 0xFFFFFF }));
+                    icing.position.y = 0.3;
+                    mesh.add(icing);
+                    break;
+                case 'chicken':
+                    mesh = new THREE.Group();
+                    const body = new THREE.Mesh(new THREE.SphereGeometry(0.6, 16, 16), new THREE.MeshStandardMaterial({ color: 0xB45309 }));
+                    body.scale.set(1, 0.6, 0.8);
+                    const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 0.6), new THREE.MeshStandardMaterial({ color: 0xB45309 }));
+                    leg1.position.set(0.5, -0.2, 0.3); leg1.rotation.z = -Math.PI/4;
+                    const leg2 = new THREE.Mesh(new THREE.CylinderGeometry(0.15, 0.25, 0.6), new THREE.MeshStandardMaterial({ color: 0xB45309 }));
+                    leg2.position.set(0.5, -0.2, -0.3); leg2.rotation.z = -Math.PI/4;
+                    mesh.add(body, leg1, leg2);
+                    break;
+                case 'steak':
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 0.2, 16), new THREE.MeshStandardMaterial({ color: 0x78350F }));
+                    mesh.scale.set(1.2, 1, 0.7);
+                    break;
+                case 'peas':
+                    mesh = new THREE.Group();
+                    const peaGeo = new THREE.SphereGeometry(0.15, 8, 8);
+                    const peaMat = new THREE.MeshStandardMaterial({ color: 0x22C55E });
+                    for(let i=0; i<6; i++) {
+                        const pea = new THREE.Mesh(peaGeo, peaMat);
+                        pea.position.set((Math.random()-0.5)*0.6, (Math.random()-0.5)*0.2, (Math.random()-0.5)*0.6);
+                        mesh.add(pea);
+                    }
+                    break;
+                case 'water':
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 16), new THREE.MeshStandardMaterial({ color: 0x38BDF8, transparent: true, opacity: 0.6 }));
+                    break;
+                case 'milk':
+                    mesh = new THREE.Mesh(new THREE.BoxGeometry(0.5, 1.2, 0.5), new THREE.MeshStandardMaterial({ color: 0xF8FAFC }));
+                    break;
+                case 'juice':
+                    mesh = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 1, 16), new THREE.MeshStandardMaterial({ color: 0xF97316, transparent: true, opacity: 0.8 }));
+                    break;
+            }
+
+            if(mesh) { mesh.castShadow = true; group.add(mesh); }
+            group.userData.startY = 1; group.position.y = 1;
+            group.userData.rotSpeed = Math.random() * 0.02 - 0.01;
+            return group;
+        }
+
+        function speak(text) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+                const utterance = new SpeechSynthesisUtterance(text);
+                utterance.rate = 0.9;
+                utterance.pitch = 1.2;
+                window.speechSynthesis.speak(utterance);
+            }
+        }
+
+        function spawnFoods() {
+            activeFoods.forEach(f => scene.remove(f));
+            activeFoods.length = 0;
+
+            const targetObj = foods[Math.floor(Math.random() * foods.length)];
+            currentTarget = targetObj;
+
+            const decoys = foods.filter(f => f.id !== targetObj.id).sort(() => 0.5 - Math.random()).slice(0, 3);
+            const allToSpawn = [targetObj, ...decoys];
+            
+            allToSpawn.forEach(foodObj => {
+                const mesh = createFoodMesh(foodObj.id);
+                let validPosition = false, rx, rz;
+                while(!validPosition) {
+                    rx = (Math.random() - 0.5) * 26;
+                    rz = (Math.random() - 0.5) * 26;
+                    if(Math.sqrt(rx*rx + rz*rz) > 5) validPosition = true;
+                }
+                mesh.position.set(rx, 1, rz);
+                scene.add(mesh);
+                activeFoods.push(mesh);
+            });
+
+            // Generate dialogue based on type
+            const foodDialogues = [
+                { text: `I'm hungry! Find <span class="text-red-500 font-extrabold uppercase">${targetObj.name}</span>!`, voice: `I'm hungry! Find ${targetObj.name}!` },
+                { text: `Have we got <span class="text-red-500 font-extrabold uppercase">${targetObj.name}</span>?`, voice: `Have we got ${targetObj.name}?` },
+                { text: `I would love <span class="text-red-500 font-extrabold uppercase">${targetObj.name}</span>!`, voice: `I would love ${targetObj.name}!` },
+                { text: `Can I have <span class="text-red-500 font-extrabold uppercase">${targetObj.name}</span>, please?`, voice: `Can I have ${targetObj.name}, please?` }
+            ];
+
+            const drinkDialogues = [
+                { text: `I'm thirsty! I need <span class="text-blue-500 font-extrabold uppercase">${targetObj.name}</span>!`, voice: `I'm thirsty! I need ${targetObj.name}!` },
+                { text: `Have we got <span class="text-blue-500 font-extrabold uppercase">${targetObj.name}</span>?`, voice: `Have we got ${targetObj.name}?` },
+                { text: `Can I drink <span class="text-blue-500 font-extrabold uppercase">${targetObj.name}</span>?`, voice: `Can I drink ${targetObj.name}?` }
+            ];
+
+            const pool = targetObj.type === 'drink' ? drinkDialogues : foodDialogues;
+            const selectedDialogue = pool[Math.floor(Math.random() * pool.length)];
+
+            document.getElementById('monster-text').innerHTML = selectedDialogue.text;
+            
+            // Save the voice text so the repeat button can use it
+            currentTarget.voiceText = selectedDialogue.voice;
+            speak(selectedDialogue.voice);
+        }
+
+        // Selection UI logic
+        const cards = {
+            blue: document.getElementById('char-blue'),
+            pink: document.getElementById('char-pink'),
+            green: document.getElementById('char-green')
+        };
+
+        function selectChar(type) {
+            selectedCharacter = type;
+            Object.keys(cards).forEach(k => cards[k].classList.remove('selected'));
+            cards[type].classList.add('selected');
+        }
+
+        cards.blue.addEventListener('click', () => selectChar('blue'));
+        cards.pink.addEventListener('click', () => selectChar('pink'));
+        cards.green.addEventListener('click', () => selectChar('green'));
+
+        function updateLivesDisplay() {
+            let hearts = "";
+            for(let i=0; i<lives; i++) hearts += "❤️";
+            for(let i=lives; i<3; i++) hearts += "🖤";
+            document.getElementById('lives-display').innerText = hearts;
+        }
+
+        function startGame() {
+            buildCharacter(selectedCharacter);
+            document.getElementById('start-screen').style.display = 'none';
+            score = 0;
+            lives = 3;
+            document.getElementById('score').innerText = "0 / 10";
+            updateLivesDisplay();
+            setMonsterExpression('happy');
+            player.position.set(0, 0, 10);
+            playerMeshGroup.rotation.y = Math.PI; // Face towards the center/monster
+            cameraAngleY = playerMeshGroup.rotation.y + Math.PI; // Camera starts behind player
+            gameActive = true;
+            spawnFoods();
+        }
+
+        function showFeedback(text, isGood) {
+            const fb = document.getElementById('feedback-text');
+            fb.innerText = text;
+            fb.className = `absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 text-5xl font-extrabold drop-shadow-[0_5px_5px_rgba(0,0,0,0.8)] transition-opacity duration-300 ${isGood ? 'text-green-400' : 'text-red-500'}`;
+            fb.style.opacity = 1;
+            setTimeout(() => fb.style.opacity = 0, 1500);
+        }
+
+        // Input & Controls
+        document.getElementById('start-btn').addEventListener('click', startGame);
+        
+        // Restart from Win Screen
+        document.getElementById('restart-btn').addEventListener('click', () => {
+            document.getElementById('win-screen').classList.remove('flex');
+            document.getElementById('win-screen').classList.add('hidden');
+            document.getElementById('start-screen').style.display = 'flex';
+        });
+
+        // Restart from Game Over Screen
+        document.getElementById('retry-btn').addEventListener('click', () => {
+            document.getElementById('game-over-screen').classList.remove('flex');
+            document.getElementById('game-over-screen').classList.add('hidden');
+            document.getElementById('start-screen').style.display = 'flex';
+        });
+
+        document.getElementById('repeat-btn').addEventListener('click', () => {
+            if(currentTarget) speak(currentTarget.voiceText || `Bring me ${currentTarget.name}`);
+        });
+
+        window.addEventListener('keydown', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = true; if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        window.addEventListener('keyup', (e) => { if(keys.hasOwnProperty(e.key.toLowerCase())) keys[e.key.toLowerCase()] = false; if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+        // Camera Drag rotation controls
+        window.addEventListener('pointerdown', (e) => {
+            if(e.target.closest('#ui-layer') || e.target.closest('#start-screen')) return;
+            isDragging = true;
+            previousMouseX = e.clientX;
+            previousMouseY = e.clientY;
+        });
+
+        window.addEventListener('pointermove', (e) => {
+            if (!isDragging) return;
+            const deltaX = e.clientX - previousMouseX;
+            const deltaY = e.clientY - previousMouseY;
+
+            cameraAngleY -= deltaX * 0.005;
+            cameraPitch = Math.max(0.2, Math.min(1.2, cameraPitch + deltaY * 0.003));
+
+            previousMouseX = e.clientX;
+            previousMouseY = e.clientY;
+        });
+
+        window.addEventListener('pointerup', () => isDragging = false);
+
+        // Mobile button bindings
+        const setupBtn = (id, keyBind) => {
+            const btn = document.getElementById(id);
+            if(!btn) return;
+            btn.addEventListener('touchstart', (e) => { e.preventDefault(); keys[keyBind] = true; });
+            btn.addEventListener('touchend', (e) => { e.preventDefault(); keys[keyBind] = false; });
+            btn.addEventListener('mousedown', () => keys[keyBind] = true);
+            btn.addEventListener('mouseup', () => keys[keyBind] = false);
+        };
+        setupBtn('btn-up', 'w');
+        setupBtn('btn-down', 's');
+        setupBtn('btn-left', 'a');
+        setupBtn('btn-right', 'd');
+        setupBtn('btn-cam-left', 'q');
+        setupBtn('btn-cam-right', 'e');
+
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Animation & Render Loop
+        const clock = new THREE.Clock();
+        const playerSpeed = 10;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const dt = clock.getDelta();
+            const time = clock.getElapsedTime();
+
+            if (gameActive) {
+                // Key Camera Rotation
+                if (keys.q) cameraAngleY += 1.5 * dt;
+                if (keys.e) cameraAngleY -= 1.5 * dt;
+
+                // Movement Relative to Camera
+                let moveX = 0;
+                let moveZ = 0;
+
+                if (keys.w || keys.ArrowUp) moveZ = -1;
+                if (keys.s || keys.ArrowDown) moveZ = 1;
+                if (keys.a || keys.ArrowLeft) moveX = -1;
+                if (keys.d || keys.ArrowRight) moveX = 1;
+
+                if (moveX !== 0 || moveZ !== 0) {
+                    // Normalize vector so diagonal movement isn't faster
+                    const length = Math.sqrt(moveX * moveX + moveZ * moveZ);
+                    moveX /= length;
+                    moveZ /= length;
+
+                    // Calculate movement relative to camera angle
+                    const camSin = Math.sin(cameraAngleY);
+                    const camCos = Math.cos(cameraAngleY);
+
+                    const finalMoveX = moveX * camCos + moveZ * camSin;
+                    const finalMoveZ = -moveX * camSin + moveZ * camCos;
+
+                    player.position.x += finalMoveX * playerSpeed * dt;
+                    player.position.z += finalMoveZ * playerSpeed * dt;
+
+                    // Bounds
+                    player.position.x = Math.max(-25, Math.min(25, player.position.x));
+                    player.position.z = Math.max(-25, Math.min(25, player.position.z));
+
+                    // Rotate character mesh to face movement direction
+                    const targetRotation = Math.atan2(finalMoveX, finalMoveZ);
+                    
+                    // Smooth rotation interpolation
+                    let diff = targetRotation - playerMeshGroup.rotation.y;
+                    while (diff < -Math.PI) diff += Math.PI * 2;
+                    while (diff > Math.PI) diff -= Math.PI * 2;
+                    playerMeshGroup.rotation.y += diff * 10 * dt;
+                }
+
+                // Apply manual camera orbit position
+                const camDistance = 12;
+                const camHeight = 10 * cameraPitch;
+                const camX = player.position.x + camDistance * Math.sin(cameraAngleY);
+                const camZ = player.position.z + camDistance * Math.cos(cameraAngleY);
+
+                camera.position.set(camX, player.position.y + camHeight, camZ);
+                camera.lookAt(player.position.x, player.position.y + 1.5, player.position.z);
+
+                // Monster bobbing animation
+                monster.position.y = 2 + Math.sin(time * 3) * 0.2;
+
+                // Collision Detection
+                for (let i = activeFoods.length - 1; i >= 0; i--) {
+                    const food = activeFoods[i];
+                    food.rotation.y += food.userData.rotSpeed;
+                    food.position.y = food.userData.startY + Math.sin(time * 5 + i) * 0.2;
+
+                    if (player.position.distanceTo(food.position) < 1.8) {
+                        const touchedId = food.userData.id;
+
+                        if (touchedId === currentTarget.id) {
+                            score++;
+                            document.getElementById('score').innerText = score + " / 10";
+                            
+                            if (score >= 10) {
+                                gameActive = false;
+                                setMonsterExpression('happy');
+                                document.getElementById('win-screen').classList.remove('hidden');
+                                document.getElementById('win-screen').classList.add('flex');
+                                speak("Hooray! I am full. Thank you for the lunch!");
+                            } else {
+                                speak("Yummy! " + currentTarget.name);
+                                showFeedback("Yummy! +1", true);
+                                monster.position.y += 1.5;
+                                spawnFoods();
+                            }
+                        } else {
+                            const wrongFoodName = foods.find(f => f.id === touchedId).name;
+                            lives--;
+                            updateLivesDisplay();
+                            
+                            if (lives <= 0) {
+                                gameActive = false;
+                                setMonsterExpression('sad');
+                                document.getElementById('game-over-screen').classList.remove('hidden');
+                                document.getElementById('game-over-screen').classList.add('flex');
+                                speak("Oh no! I lost all my lives! I am still hungry.");
+                            } else {
+                                speak("Yuck! I don't want " + wrongFoodName);
+                                showFeedback("Yuck! -1 Life", false);
+                                setMonsterExpression('sad');
+                                setTimeout(() => { if(gameActive) setMonsterExpression('happy'); }, 2000);
+                                food.position.x += (Math.random() - 0.5) * 6;
+                                food.position.z += (Math.random() - 0.5) * 6;
+                            }
+                        }
+                    }
+                }
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.onload = () => animate();
+    </script>
+</body>
+</html>
